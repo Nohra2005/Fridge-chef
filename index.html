@@ -795,4 +795,9 @@ function addCooked(name){ name=clean(name); if(!name) return;
 function isCooked(name){ return history.some(h=>h.name.toLowerCase()===String(name||"").toLowerCase()); }
 function recentLine(){ const r=history.slice(0,10).map(h=>h.name).join(", "); return r?`Recently eaten (avoid repeating, vary proteins): ${r}.`:`Nothing logged yet.`; }
 
-/* ============ toast =
+/* ============ toast ============ */
+let toastT=null;
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2200); }
+</script>
+</body>
+</html>
