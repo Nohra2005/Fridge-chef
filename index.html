@@ -423,7 +423,7 @@
 <script>
 /* ============ config ============ */
 const MODELS = ["gemini-flash-latest","gemini-flash-lite-latest"];
-const BAKED_KEY = "AIzaSyCVaXN4C25KwckQ-Yjl4a0DZevDc4cErJc";
+const BAKED_KEY = "__GEMINI_KEY__"; // injected at deploy from the GEMINI_KEY GitHub secret
 const ENDPOINT = m => `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${encodeURIComponent(getKey())}`;
 const CONF = 0.7;
 const DIET = "I eat a clean keto / animal-based diet: ground beef, eggs, chicken, avocado, greek yogurt, raw nuts, fruit, sweet potato, and occasional clean carbs like rice or pasta. Everything unprocessed and simple. I'm a busy intern with little time to cook.";
@@ -597,21 +597,30 @@ function renderReview(){
 function addManual(){ const v=$("addInput").value.trim(); if(v){ addIngredient(v); $("addInput").value=""; renderReview(); } }
 
 /* ============ meal cards + images ============ */
+// Real photos via Openverse image search (free, no key). Search the whole dish
+// name first so the photo matches the actual meal, not just one ingredient.
 async function findDishImage(m){
-  const tries=[];
-  if(m.photo_query) tries.push(["search.php?s=",m.photo_query]);
-  if(m.name) tries.push(["search.php?s=",m.name]);
-  (m.uses||[]).forEach(u=>{ const p=String(u).trim().split(/\s+/); tries.push(["filter.php?i=",u]); if(p.length>1) tries.push(["filter.php?i=",p[p.length-1]]); });
-  for(const [path,val] of tries.slice(0,5)){
-    try{ const r=await fetch(`https://www.themealdb.com/api/json/v1/1/${path}${encodeURIComponent(val)}`);
-      if(!r.ok) continue; const j=await r.json();
-      if(j.meals&&j.meals[0]&&j.meals[0].strMealThumb) return j.meals[0].strMealThumb; }catch(e){}
+  const queries=[];
+  if(m.photo_query) queries.push(m.photo_query);
+  if(m.name)        queries.push(m.name);
+  const use0=(m.uses||[])[0]; if(use0) queries.push(use0+" dish");
+  const seen=new Set();
+  for(let q of queries){
+    q=String(q).trim(); if(!q||seen.has(q.toLowerCase())) continue; seen.add(q.toLowerCase());
+    try{
+      const r=await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(q)}&page_size=5&mature=false`);
+      if(!r.ok) continue;
+      const j=await r.json();
+      const hit=(j.results||[]).find(x=>x.thumbnail||x.url);
+      if(hit) return hit.thumbnail || hit.url;
+    }catch(e){}
   }
   return null;
 }
 async function loadImg(el, m, removeOnFail=true){
   const url=await findDishImage(m);
-  if(url){ const pre=new Image();
+  if(url){
+    const pre=new Image();
     pre.onload=()=>{ el.classList.remove("skeleton"); el.style.backgroundImage=`url("${url}")`; };
     pre.onerror=()=>{ if(removeOnFail) el.remove(); else el.classList.remove("skeleton"); };
     pre.src=url;
@@ -786,9 +795,4 @@ function addCooked(name){ name=clean(name); if(!name) return;
 function isCooked(name){ return history.some(h=>h.name.toLowerCase()===String(name||"").toLowerCase()); }
 function recentLine(){ const r=history.slice(0,10).map(h=>h.name).join(", "); return r?`Recently eaten (avoid repeating, vary proteins): ${r}.`:`Nothing logged yet.`; }
 
-/* ============ toast ============ */
-let toastT=null;
-function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2200); }
-</script>
-</body>
-</html>
+/* ============ toast =
