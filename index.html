@@ -193,7 +193,7 @@
   .act-cart:active,.act-cook:active{transform:scale(.97)}
 
   /* ---------- weekly plan ---------- */
-  .day{display:flex;gap:13px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:12px;margin-bottom:11px;box-shadow:var(--shadow-sm)}
+  .day{display:flex;gap:13px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:12px;margin-bottom:0;box-shadow:var(--shadow-sm)}
   .day .thumb{width:78px;height:78px;border-radius:14px;flex:none;background-size:cover;background-position:center;background-color:var(--surface2)}
   .day .thumb.skeleton{background:linear-gradient(100deg,var(--surface2) 30%,#eef4ef 50%,var(--surface2) 70%);background-size:200% 100%;animation:shimmer 1.3s infinite}
   .day .dinfo{min-width:0;flex:1}
@@ -201,6 +201,20 @@
   .day .mname{font-size:15.5px;font-weight:800;letter-spacing:-.01em;margin:2px 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .day .bk{font-size:12.5px;color:var(--muted);font-weight:600}
   .day .bk b{color:var(--ink);font-weight:700}
+  .daywrap{margin-bottom:11px}
+  .daywrap.open .day{border-radius:18px 18px 0 0}
+  .day .chev{margin-left:auto;align-self:center;color:var(--faint);font-size:20px;font-weight:800;flex:none;padding-left:8px;transition:transform .25s}
+  .daywrap.open .day .chev{transform:rotate(180deg)}
+  .day-detail{display:none;background:var(--surface);border:1px solid var(--line);border-top:none;border-radius:0 0 18px 18px;padding:4px 16px 16px;box-shadow:var(--shadow-sm)}
+  .daywrap.open .day-detail{display:block}
+  .det-ings{font-size:13.5px;color:var(--muted);margin:12px 0 2px}
+  .det-ings b{color:var(--acc-d)}
+  .det-note{font-size:13px;color:var(--faint);font-style:italic;margin-top:12px}
+  .day-detail ol{margin:14px 0 2px;padding:0;list-style:none;counter-reset:step}
+  .day-detail ol li{position:relative;padding:2px 0 2px 38px;margin-bottom:12px;font-size:14.5px;color:#2a3830;line-height:1.5;counter-increment:step}
+  .day-detail ol li:last-child{margin-bottom:0}
+  .day-detail ol li:before{content:counter(step);position:absolute;left:0;top:0;width:26px;height:26px;border-radius:50%;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
+  .day-detail .mealacts{margin-top:16px}
 
   /* ---------- surprise ---------- */
   .surprise-wrap{text-align:center}
@@ -696,12 +710,12 @@ async function generatePlan(){
   $("planErr").classList.add("hidden"); $("planLoading").classList.remove("hidden"); $("planMsg").textContent="Building your week…";
   const prompt=`${DIET}
 ${recentLine()}
-Build a 7-day meal plan (Monday to Sunday). Each day: a quick "breakfast" (name only) and one easy "main" meal (~15 min).
+Build a 7-day meal plan (Monday to Sunday). Each day: a quick "breakfast" (name only) and one easy "main" meal (~15 min) with 2-4 short cooking "steps".
 Vary the proteins across the week and don't repeat the recently eaten meals. Keep it realistic for a busy intern.
 Also produce a consolidated weekly shopping "cart" (deduped simple grocery items covering the plan).
-For each main add "photo_query": a simple common dish name for a stock photo.
+For each main include short "steps" (2-4) and a "photo_query": a simple common dish name for a stock photo.
 Return ONLY JSON:
-{"week":[{"day":"Monday","breakfast":"...","main":{"name","time","uses":[],"photo_query"}}],"cart":[]}`;
+{"week":[{"day":"Monday","breakfast":"...","main":{"name","time","uses":[],"steps":[],"photo_query"}}],"cart":[]}`;
   try{
     const txt=await callGemini([{text:prompt}], true, sw=>{ $("planMsg").textContent= sw?"Still busy — switching model…":"Almost there…"; });
     const data=parseJsonLoose(txt,{});
@@ -721,16 +735,34 @@ function renderPlan(){
   $("planEmpty").classList.add("hidden");
   lastPlan.week.forEach(day=>{
     const main=day.main||{};
-    const el=document.createElement("div"); el.className="day";
-    el.innerHTML=`<div class="thumb skeleton"></div>
-      <div class="dinfo">
-        <div class="dname">${esc(day.day||"")}</div>
-        <div class="mname">${esc(main.name||"—")}</div>
-        <div class="bk">🍳 <b>Breakfast:</b> ${esc(day.breakfast||"—")}${main.time?` · ${esc(main.time)}`:""}</div>
+    const uses=(main.uses||[]).map(esc).join(", ");
+    const steps=(main.steps||[]).map(s=>`<li>${esc(s)}</li>`).join("");
+    const wrap=document.createElement("div"); wrap.className="daywrap";
+    wrap.innerHTML=`
+      <div class="day">
+        <div class="thumb skeleton"></div>
+        <div class="dinfo">
+          <div class="dname">${esc(day.day||"")}</div>
+          <div class="mname">${esc(main.name||"—")}</div>
+          <div class="bk">🍳 <b>Breakfast:</b> ${esc(day.breakfast||"—")}${main.time?` · ${esc(main.time)}`:""}</div>
+        </div>
+        <div class="chev">⌄</div>
+      </div>
+      <div class="day-detail">
+        ${uses?`<div class="det-ings"><b>🥘 Ingredients:</b> ${uses}</div>`:""}
+        ${steps?`<ol>${steps}</ol>`:`<div class="det-note">Tap “Regenerate week” to get step-by-step instructions for these meals.</div>`}
+        <div class="mealacts">
+          <button class="act-cook">✓ I cooked this</button>
+          <button class="act-cart">+ Add to cart</button>
+        </div>
       </div>`;
-    loadImg(el.querySelector(".thumb"), main, false);
-    el.onclick=()=>{ if(main.name){ addCooked(main.name); toast(main.name+" logged ✓"); } };
-    out.appendChild(el);
+    loadImg(wrap.querySelector(".thumb"), main, false);
+    wrap.querySelector(".day").onclick=()=>wrap.classList.toggle("open");
+    const cookBtn=wrap.querySelector(".act-cook");
+    if(isCooked(main.name)){ cookBtn.classList.add("done"); cookBtn.textContent="✓ Cooked"; }
+    cookBtn.onclick=()=>{ if(main.name){ addCooked(main.name); cookBtn.classList.add("done"); cookBtn.textContent="✓ Cooked"; toast(main.name+" logged ✓"); } };
+    wrap.querySelector(".act-cart").onclick=()=>{ addToCart(main.uses||[]); toast("Ingredients added to cart 🛒"); };
+    out.appendChild(wrap);
   });
   $("planFooter").classList.remove("hidden");
 }
