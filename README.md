@@ -20,29 +20,23 @@ All state is stored in the browser (`localStorage`) — no account, no server.
 - [Google Gemini](https://ai.google.dev/) (free tier) for fridge vision + meal generation.
 - [Openverse](https://openverse.org/) (free, no key) for real dish photos.
 
-## How the API key is handled
+## Deploy
 
-A browser-only app can't truly hide an API key, but this repo keeps the key **out of the source** and only injects it at deploy time:
+**Option A — Netlify (drag & drop):** go to [app.netlify.com/drop](https://app.netlify.com/drop) and drag this folder in. Done.
 
-1. The key lives in a GitHub **repository secret** named `GEMINI_KEY` (Settings → Secrets and variables → Actions).
-2. On every push, the workflow in `.github/workflows/deploy.yml` replaces the `__GEMINI_KEY__` placeholder in `index.html` with the secret, then publishes to GitHub Pages.
-3. The committed source only ever contains the placeholder, so the key is never in the repo and won't be auto-disabled as "leaked."
+**Option B — GitHub Pages:** push this folder to a repo, then in the repo go to **Settings → Pages → Build from branch → main / root**. Your app is live at `https://<user>.github.io/<repo>/`.
 
-The key is still visible in the deployed page (unavoidable for any client-side app), so it's also **restricted** in Google Cloud so it only works from this site.
+## ⚠️ Important: protect your API key
 
-## Deploy (GitHub Pages)
+The Gemini API key is embedded in `index.html` so the app works as a static site. On a **public** site or repo, that key is visible to anyone. Client-side keys can't be hidden — instead, **restrict** it so it's useless to others:
 
-1. **Settings → Pages → Source → GitHub Actions.**
-2. **Settings → Secrets and variables → Actions → New repository secret:** name `GEMINI_KEY`, value = your Gemini key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
-3. Push to `main`. The Actions workflow injects the key and deploys automatically.
+1. Open [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials).
+2. Click your API key → **Application restrictions → Websites (HTTP referrers)**.
+3. Add your site only, e.g. `https://your-site.netlify.app/*` and `https://<user>.github.io/*`.
+4. Save. The key now works only from your site, and the free tier caps usage.
 
-## Restrict your key (do this once)
-
-In [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials), open the key and set:
-
-- **Application restrictions → Websites →** `https://nohra2005.github.io/*`
-- **API restrictions →** allow **Generative Language API** (or "Don't restrict key").
+If a key ever leaks or gets abused, delete it at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and paste a new one into the `BAKED_KEY` line near the top of the `<script>` in `index.html`.
 
 ## Diet
 
-Tuned for clean keto / animal-based eating: beef, eggs, chicken, avocado, greek yogurt, nuts, fruit, sweet potato, and occasional clean carbs. Edit the `DIET` constant near the top of the script in `index.html` to change the style.
+Tuned for clean keto / animal-based eating: beef, eggs, chicken, avocado, greek yogurt, nuts, fruit, sweet potato, and occasional clean carbs. Edit the `DIET` constant in `index.html` to change the style.
